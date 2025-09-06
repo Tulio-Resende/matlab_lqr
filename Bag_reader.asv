@@ -1,0 +1,27 @@
+close all
+clear all
+
+% Select the bag (the path where the bag is)
+bag = rosbag('/home/tulio/matlab_scripts/LQR/bags/test1.bag');
+
+% See the available topics saved in the record
+% bag.AvailableTopics
+
+
+% Select the topic/topics you'd like to analyse (filter of topics)
+% ref_generator = select(bag, 'Topic', '/rl_control/ref_generator');
+
+% Save messages as structs
+msgs = readMessages(bag, 'DataFormat', 'struct');
+
+
+n = length(msgs);
+ref_states = zeros(n,5);
+
+for i = 1:n
+    ref(i,1) = msgs{i}.
+    ref(i,2) = msgs{i}.Pose.Pose.Position.Y;
+    ref(i,3) = msgs{i}.Pose.Pose.Position.Z;
+    ref(i,4) = msgs{i}.Pose.Pose.Position.Z;
+    ref(i,5) = msgs{i}.Pose.Pose.Position.Z;
+end
