@@ -25,9 +25,9 @@ c1=5;c2=3;c3=3*0.1571/3;c4=5;
 yss=2;
 
 %%%%%% x-DOF %%%%%%%%
-ymtilde_x=((c1-c2)*cos(c3*ts)+c4*cos(((c1-c2)*c3/c2)*ts))+ yss;
-
-S=collect(laplace(ymtilde_x));
+ymtilde=((c1-c2)*cos(c3*ts)+c4*cos(((c1-c2)*c3/c2)*ts) + yss);
+ymtilde_integral
+S=collect(laplace(ymtilde));
 [nS,dS]=numden(S);
 num=eval(coeffs(nS,'All'));
 den=eval(coeffs(dS,'All'));
@@ -41,7 +41,7 @@ Cmx=Cmc;
 xm0x=Bmc;
 
 %%%%%% Y-DOF %%%%%%%%
-ymtilde_y=((c1-c2)*sin(c3*ts)-c4*sin(((c1-c2)*c3/c2)*ts)) + yss;
+ymtilde_y=((c1-c2)*sin(c3*ts)-c4*sin(((c1-c2)*c3/c2)*ts));
 
 S=collect(laplace(ymtilde_y));
 [nS,dS]=numden(S);
@@ -59,6 +59,7 @@ xm0y=Bmc;
 
 nm=max(size(Amc));
 
+
 %% Augumented System: Just Plant and Generator
 
 
@@ -71,23 +72,38 @@ Czx=[Cd -Cmx];
 %%%%% y-DOF %%%%%%%%
 Czy=[Cd -Cmy];
 
+% %% Augumented System: Plant, Integrator
+% 
+% Aa=[Ad zeros(np,1);
+%     -h*Cd 1];
+% Ba=[Bd; 0];
+% 
+% %%%%% x-DOF %%%%%%%%
+% Cax=[Cd -1/h -Cmx];
+% %%%%% y-DOF %%%%%%%%
+% Cay=[Cd -1/h -Cmy];
+
+
+
+
 %% Augumented System: Plant, Integrator and Generator
 
-Aa=[Ad zeros(np,1) zeros(np,nm);
-    -h*Cd 1 zeros(1, nm);
-    zeros(nm,np) Amx];
-Ba=[Bd;zeros(nm,1)];
-
-%%%%% x-DOF %%%%%%%%
-Cax=[Cd -1/h -Cmx];
-%%%%% y-DOF %%%%%%%%
-Cay=[Cd -1/h -Cmy];
+% Aa=[Ad zeros(np,1) zeros(np,nm);
+%     -h*Cd 1 zeros(1, nm);
+%     zeros(nm,np) zeros(nm, 1) Amx];
+% Ba=[Bd; 0; zeros(nm,1)];
+% 
+% %%%%% x-DOF %%%%%%%%
+% Cax=[Cd -1/h -Cmx];
+% %%%%% y-DOF %%%%%%%%
+% Cay=[Cd -1/h -Cmy];
 
 
 %% Parameters LQR
 % ----------------------------------------------------------------
-R=1;
-Qe = 10;
+R = 1;
+Q = 1;
+Qe = 1;
 
 %% Parameters LQT
 %%%%% x-DOF %%%%%%%%
@@ -102,15 +118,17 @@ Qax=Cax'*Qe*Cax;
 %%%%% y-DOF %%%%%%%%
 Qay=Cay'*Qe*Cay;
 
-%% LQR
 
-% [P, K] = idare(Ad,Bd,Qe, R);
-
-%% LQT
+%%%%% Discout %%%%%
 g = 0.5;
 gh=g^h;
+%% LQR
 
-%%%%% x-DOF %%%%%%%%
+% [K] = dlqr(sqrt(gh)*Ad,sqrt(gh)*Bd,Q, R)
+
+%% LQT
+
+%%%% x-DOF %%%%%%%%
 [Kx] = dlqr(sqrt(gh)*Az,sqrt(gh)*Bz,Qzx, R)
 
 %%%%% y-DOF %%%%%%%%
@@ -120,12 +138,12 @@ gh=g^h;
 %% LQT-I
 g = 0.5;
 gh=g^h;
-
-%%%%% x-DOF %%%%%%%%
-[Kx] = dlqr(sqrt(gh)*Aa,sqrt(gh)*Ba,Qax, R)
-
-%%%%% y-DOF %%%%%%%%
-[Ky] = dlqr(sqrt(gh)*Aa,sqrt(gh)*Ba,Qay, R)
+% 
+% %%%%% x-DOF %%%%%%%%
+% [Kx] = dlqr(sqrt(gh)*Aa,sqrt(gh)*Ba,Qax, R)
+% 
+% %%%%% y-DOF %%%%%%%%
+% [Ky] = dlqr(sqrt(gh)*Aa,sqrt(gh)*Ba,Qay, R)
 
 
 
