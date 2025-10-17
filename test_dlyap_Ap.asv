@@ -1,0 +1,213 @@
+clear all
+
+syms ts real
+
+% Symb H
+syms h11 h12 h13 h14 h15 h16 h17 h18 h22 h23 h24 h25 h26 h27 h28 h33 h34 h35 h36 h37 h38 h44 h45 h46 h47 h48 h55 h56 h57 h58 h66 h67 h68 h77 h78 h88 real
+
+%syms T real
+T=1/50;
+syms kp s real;
+
+%% Initial Param
+gamma = 0.5;
+gh = gamma^T;
+
+%% Reference Model
+c1=5;c2=3;c3=3*0.1571/3;c4=5;
+yss=2;
+
+%%%%%% x-DOF %%%%%%%%
+ymtilde=((c1-c2)*cos(c3*ts)+c4*cos(((c1-c2)*c3/c2)*ts) + yss);
+
+S=collect(laplace(ymtilde));
+[nS,dS]=numden(S);
+num=eval(coeffs(nS,'All'));
+den=eval(coeffs(dS,'All'));
+[Amc,Bmc,Cmc,Dmc]=tf2ss(num,den);
+
+% [Vm,Em]=eig(Amc)
+% invVm=inv(Vm);
+
+Amx=expm(Amc*T);
+Cmx=Cmc;
+xm0x=Bmc;
+%% 1DOF Linear Plant
+% Continuos
+Ac=[0 1;0 -kp];Bc=[0 kp]';Cc=[1 0];Dc=0;
+
+% Discrete ZOH
+Ad=expm(Ac*T);
+Ads=expm(Ac*s);
+Bd=int(Ads,0,T)*Bc;
+Cd=[1 0];Dd=0;
+%% Partial K*);
+
+%% H-Matrix
+
+
+% Construir matriz H simétrica
+H = [h11 h12 h13 h14 h15 h16 h17 h18;
+     h12 h22 h23 h24 h25 h26 h27 h28;
+     h13 h23 h33 h34 h35 h36 h37 h38;
+     h14 h24 h34 h44 h45 h46 h47 h48;
+     h15 h25 h35 h45 h55 h56 h57 h58;
+     h16 h26 h36 h46 h56 h66 h67 h68;
+     h17 h27 h37 h47 h57 h67 h77 h78;
+     h18 h28 h38 h48 h58 h68 h78 h88];
+ 
+
+VH=[H(1,1:8) H(2,2:8) H(3,3:8) H(4,4:8) H(5,5:8) H(6,6:8) H(7,7:8) H(8,8:8)];
+
+% Gain Star
+Kx = [0.526620279669378,	0.262442002550444,	-4.66660887607784,	0.0718605138143464,	-0.112756794852737,	0.00130992082259127,	-0.000285134518981841];
+% % 
+% % % Setting up the A-dlyap Matrix
+% % 
+% Block A
+A11 = Ad;   
+A12 = zeros(2,5);  
+A13 = Bd;           %%
+A21 = zeros(5, 2);
+A22 = Amx;    % Am (Complete knowledge)
+A23 = zeros(5,1);    
+A31 = -Kx(1:2)*A11;   %% Unkown
+A32 = -Kx(3:7)*A22;
+A33 = -Kx(1:2)*Bd;      %%
+
+A = vpa(simplify([A11, A12, A13; A21, A22, A23; A31, A32, A33]),2);
+
+% Setting up Q_dlyap matriz
+C = [Cd -Cmx];
+Qe = 1;
+R = 1;
+Q_LQR = C'*Qe*C;
+Q = [Q_LQR, zeros(7,1); zeros(1, 7), R];
+
+kp = 1.3;
+[Ad, Bd] = get_Ap(Kp, T);
+H = dlyap(sqrt(gh)*A',Q);
+theta = F.FromPtoTHETA(H);
+
+% Jacoud Version
+
+P_theta = zeros(36,36);
+for i = 1:8
+    P_theta(i,i) = 1;          % Elementos 1-8: mantém igual
+end
+for i = 9:36
+    P_theta(i,i) = 0.5;        % Elementos 9-36: divide por 2
+end
+
+% New Version
+theta = P_theta * theta;
+
+% P_VH = zeros(36, 36);
+% 
+% mapping = [1, 9, 16, 22, 27, 28, 29, 36, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24, 25, 26, 30, 31, 32, 33, 34, 35];
+% 
+% for i = 1:36
+%     P_VH(i, mapping(i)) = 1;
+% end
+% 
+% theta = P_VH*theta;
+
+% All the equations
+JH=vpa(simplify(gh*A'*H*A - H),2);
+J=vpa(simplify(gh*A'*H*A - H+Q),2);
+
+mask_a = arrayfun(@(x) ismember(sym('kp'), symvar(x)), JH);
+[I,J]=find(mask_a==0);
+Nij=length(I);
+
+% inicializa vetor de coeficientes
+
+%% somente equações que não dependem de kp
+
+%VH=[h18, h28, h38, h48, h58, h68, h78, h88];
+% percorre cada variável e extrai seu coeficiente na expressão f 
+Cij=[];
+for k=1:Nij
+    c = sym(zeros(length(VH),1));
+    for i = 1:length(VH)
+        aux = coeffs(JH(I(k),J(k)), [VH(i)]);
+        if (length(aux)==2)
+            c(i)=aux(end);
+        else
+            c(i)=0;
+        end
+    end
+    Cij=[Cij;c'];
+end
+Qij=[];
+for k=1:Nij
+    Qij(k)=Q(I(k),J(k));
+end
+
+b2 = Qij';
+A_2 = Cij;
+
+%% Solution
+theta_p = pinv(A_2)*b2;
+Nullspace = null(A_2);
+
+%mask = arrayfun(@(x) isa(x, 'sym'), J(1,1))
+% format short
+%J_short = vpa(J, 2);
+%J_short(:, 1)
+
+
+%% Todas as equações (em termos de kp)
+% Dij = [];
+% d = sym(zeros(length(VH),1));
+% 
+% for k = 1:size(JH,1)
+%     for j = 1:size(JH,2)
+%         for i = 1:length(VH)
+%             aux = coeffs(JH(k,j), [VH(i)]);
+%             if (length(aux)==2)
+%                 d(i)=aux(end);
+%             else
+%                 d(i)=0;
+%             end
+%         end
+%         Dij = [Dij;d'];
+%     end  
+% end
+% 
+% Dij = vpa(Dij, 2)
+% 
+function [Ad,Bd] = get_Ap(kp, T)
+    syms s real
+    Ac=[0 1;0 -kp];Bc=[0 kp]';
+
+    % Discrete ZOH
+    Ad=expm(Ac*T);
+    Ads=expm(Ac*s);
+    Bd=int(Ads,0,T)*Bc;
+end
+
+function VH = get_theta(k, Ad, Bd, Am, Ca, Qe, R, gh)
+
+    A11 = Ad;   
+    A12 = zeros(length(Ad),length(Am));  
+    A13 = Bd;           %%
+    A21 = zeros(length(Am), length(Ad));
+    A22 = Am;    % Am (Complete knowledge)
+    A23 = zeros(length(Am),size(Bd, 2));    
+    A31 = -k(1:2)*A11;   %% Unkown
+    A32 = -k(3:7)*A22;
+    A33 = -k(1:2)*Bd;      %%
+
+    A = vpa(simplify([A11, A12, A13; A21, A22, A23; A31, A32, A33]),2);
+
+    Qe = 1;
+    R = 1;
+    Q_LQR = Ca'*Qe*Ca;
+    Q = [Q_LQR, zeros(7,1); zeros(1, 7), R];
+
+    H = dlyap(sqrt(gh)*A',Q);
+    VH=[H(1,1:8) H(2,2:8) H(3,3:8) H(4,4:8) H(5,5:8) H(6,6:8) H(7,7:8) H(8,8:8)];
+end
+
+VH = get_theta(Kx, Ad, Bd, Amx, C, Qe, R, gh)
